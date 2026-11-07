@@ -1,0 +1,11 @@
+/* Original263c2 MCGA question window, with literal preformatted text. */
+#include "question_ui.h"
+#include "ui_draw.h"
+#include "mcga_draw.h"
+#include <string.h>
+static const char *labels[3][3]={{"Yes","No",0},{"Yes","No","Cancel"},{"Retry","Cancel",0}};
+static int dimensions(const char*s,int*w,int*h){int line=0,max=0,rows=0;unsigned n=0;if(!s)return 0;while(*s){if(++n>8192)return 0;if(*s=='\n'){if(line>max)max=line;line=0;++rows;}else if(++line>=80)return 0;++s;if(!*s&&line){if(line>max)max=line;++rows;}}*w=max;*h=rows;return 1;}
+int sim_question_layout(const char*s,unsigned kind,SimQuestionLayout*l){int w,h,left,top,span=0,x,i;if(kind>2||!l||!dimensions(s,&w,&h))return 0;l->count=kind==1?3:2;if(w<l->count*2)w=l->count*2;left=(40-w-2)/2;top=(25-h-4)/2;l->box=(SimQuestionRect){left*8,top*8,(left+w+2)*8-1,(top+h+4)*8-1};for(i=0;i<l->count;++i)span+=(int)strlen(labels[kind][i]);x=left+(w-span-2)/2;for(i=0;i<l->count;++i){int n=(int)strlen(labels[kind][i]);l->button[i]=(SimQuestionRect){x*8,(top+h+2)*8,(x+n)*8-1,(top+h+3)*8-1};x+=n+2;}return l->box.x0>=0&&l->box.y0>=0&&l->box.x1<320&&l->box.y1<200;}
+int sim_question_render(uint8_t*fb,const uint8_t*font,const char*s,unsigned kind){SimQuestionLayout l;int good,y,i;const char*p=s;char line[80];if(!fb||!font||!sim_question_layout(s,kind,&l))return 0;good=sim_mcga_fill(fb,l.box.x0,l.box.y0,l.box.x1,l.box.y1,15,SIM_MCGA_COPY)&&sim_ui_frame(fb,l.box.x0,l.box.y0,l.box.x1,l.box.y1,4,4)&&sim_ui_frame(fb,l.box.x0,l.box.y0,l.box.x1,l.box.y1,1,0);y=l.box.y0;while(*p){int n=0;while(*p&&*p!='\n')line[n++]=*p++;line[n]=0;if(*p=='\n')++p;y+=8;good=good&&sim_ui_text(fb,font,l.box.x0+(l.box.x1-l.box.x0-n*8)/2,y,line,4,15);}for(i=0;i<l.count;++i)good=good&&sim_ui_button(fb,font,(uint16_t)(l.button[i].x0/8),(uint16_t)(l.button[i].y0/8),labels[kind][i],4,12);return good;}
+int sim_question_key(unsigned kind,unsigned key){if(kind>2)return -1;if(key>='a'&&key<='z')key-=32;if(key==13||key==(kind==2?'R':'Y'))return 0;if(key==27)return kind==1?2:1;if(kind<2&&key=='N')return 1;if(kind==1&&key=='C')return 2;if(kind==2&&key=='C')return 1;return -1;}
+int sim_question_hit(const SimQuestionLayout*l,int x,int y){int i;if(!l||l->count<2||l->count>3)return -1;for(i=0;i<l->count;++i)if(x>=l->button[i].x0&&x<=l->button[i].x1&&y>=l->button[i].y0&&y<=l->button[i].y1)return i;return -1;}
